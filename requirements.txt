@@ -1,0 +1,4 @@
+objaverse==0.1.7
+pygltflib==1.16.3
+python-fcl==0.7.0.8
+trimesh==4.6.2
