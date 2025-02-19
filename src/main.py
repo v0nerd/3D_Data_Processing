@@ -172,8 +172,8 @@ def main():
     save_dir = "datasets"
     os.makedirs(save_dir, exist_ok=True)
 
-    non_monotonous_ids = list(load_json("non-monotonous_images_all.json"))
-    index_to_objaverse = load_json("gobjaverse_index_to_objaverse.json")
+    non_monotonous_ids = list(load_json("datasets/non-monotonous_images_all.json"))
+    index_to_objaverse = load_json("datasets/gobjaverse_index_to_objaverse.json")
 
     save_json("all_ids.json", non_monotonous_ids)  # Store all IDs
 
