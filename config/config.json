@@ -1,0 +1,7 @@
+{
+    "download_dir": "datasets",
+    "max_models": 100,
+    "retry_attempts": 3,
+    "timeout": 60
+  }
+  

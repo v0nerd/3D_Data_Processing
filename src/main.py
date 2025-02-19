@@ -1,6 +1,5 @@
 import os
 import time
-import random
 import logging
 import shutil
 import subprocess
@@ -109,7 +108,6 @@ def validate_and_convert_glb(args):
 
 
 def download_and_filter_models(num_models=100, save_dir="datasets"):
-    # Get all UIDs and select random sample
     """
     Downloads and filters models from the Objaverse dataset based on the availability of texture information.
 
@@ -120,13 +118,11 @@ def download_and_filter_models(num_models=100, save_dir="datasets"):
     Returns:
         dict: A dictionary where the keys are the UIDs of the downloaded models and the values are dictionaries containing the local paths of the downloaded files.
     """
-    all_uids = objaverse.load_uids()
-    selected_uids = random.sample(all_uids, num_models)
+    all_uids = objaverse.load_uids()  # Download all models
+    selected_uids = all_uids
 
-    # Load annotations for selected models
     annotations = objaverse.load_annotations(selected_uids)
 
-    # Filter UIDs with texture information
     textured_uids = [
         uid
         for uid in selected_uids
@@ -136,7 +132,6 @@ def download_and_filter_models(num_models=100, save_dir="datasets"):
         )
     ]
 
-    # Download filtered models into their respective directories
     downloaded_objects = {}
     for uid in textured_uids:
         model_download_path = Path(save_dir) / uid
@@ -148,31 +143,21 @@ def download_and_filter_models(num_models=100, save_dir="datasets"):
             download_processes=os.cpu_count(),
         )
 
-        # Move the downloaded files to the model-specific directory
         for object_uid, local_path in downloaded_objects[uid].items():
             new_path = model_download_path / Path(local_path).name
             shutil.move(local_path, new_path)
-
-    # Cleanup non-textured files
-    non_textured_uids = list(set(selected_uids) - set(textured_uids))
-    if non_textured_uids:
-        logging.info(f"Cleaning up {len(non_textured_uids)} non-textured models...")
-        all_objects = objaverse.load_objects(uids=selected_uids)
-        for uid in non_textured_uids:
-            if glb_path := all_objects.get(uid):
-                try:
-                    os.remove(glb_path)
-                except Exception as e:
-                    logging.error(f"Error deleting {glb_path}: {str(e)}")
 
     return downloaded_objects
 
 
 def main():
     """
-    Downloads and validates GLB files from the gobjaverse_index_to_objaverse.json and the Objaverse framework.
+    Executes the GLB processing pipeline.
 
-    Downloads GLB files from the gobjaverse_index_to_objaverse.json and the Objaverse framework, validates them, and converts the valid ones to OBJ format.
+    This function sets up logging, creates necessary directories, loads JSON files, and processes GLB files
+    by downloading, validating, and converting them. It handles GLB files from both the gobjaverse_index_to_objaverse.json
+    and the Objaverse framework, and calculates the number of valid GLB files processed from each source. Finally, it logs
+    the results including the count of valid GLB files and the elapsed time.
 
     Args:
         None
@@ -180,45 +165,37 @@ def main():
     Returns:
         None
     """
+
     setup_logging()
     logging.info("Starting the GLB processing pipeline...")
 
     save_dir = "datasets"
     os.makedirs(save_dir, exist_ok=True)
 
-    # Process models from gobjaverse_index_to_objaverse.json
     non_monotonous_ids = list(load_json("non-monotonous_images_all.json"))
     index_to_objaverse = load_json("gobjaverse_index_to_objaverse.json")
 
-    random_selection = random.sample(
-        non_monotonous_ids, min(50, len(non_monotonous_ids))
-    )
-    save_json("random_50_ids.json", random_selection)
+    save_json("all_ids.json", non_monotonous_ids)  # Store all IDs
 
     start_time = time.time()
 
     download_args = [
         (index, objaverse_id, save_dir)
         for index, objaverse_id in index_to_objaverse.items()
-        if index in random_selection
+        if index in non_monotonous_ids  # Process all models
     ]
 
-    # Use a single pool to handle both downloading and validation
     with Pool(processes=cpu_count()) as pool:
-        # First phase: Downloading GLB files
         download_results = pool.map(download_glb_file, download_args)
 
-        # Filter valid GLB files and prepare for validation
         valid_glb_files = [
             (index, objaverse_id, path, save_dir)
             for index, objaverse_id, path, success, _ in download_results
             if success
         ]
 
-        # Second phase: Validate and convert GLB files
         validation_results = pool.map(validate_and_convert_glb, valid_glb_files)
 
-        # Process models from objaverse framework
         objaverse_models = download_and_filter_models(num_models=30, save_dir=save_dir)
         valid_objaverse_models = []
         for uid, local_path in objaverse_models.items():
